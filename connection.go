@@ -76,15 +76,24 @@ func (c *connection) Close() error {
 	return c.Connection.Close()
 }
 
-func (c *connection) Consume(queue, key string, headers, args amqp.Table, autoAck bool) (*channel, <-chan amqp.Delivery, error) {
+func (c *connection) Consume(
+	queue, key string,
+	headers, args amqp.Table,
+	autoAck, durableQueue bool,
+) (*channel, <-chan amqp.Delivery, error) {
 	consumerCh, err := newChannel(c.Connection, c.count, c.global)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// TODO durable queue
-	if err := consumerCh.DeclareDurableQueue(queue, args); err != nil {
-		return nil, nil, err
+	if durableQueue {
+		if err := consumerCh.DeclareDurableQueue(queue, args); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		if err := consumerCh.DeclareQueue(queue, args); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	deliveries, err := consumerCh.ConsumeQueue(queue, autoAck)
@@ -151,7 +160,6 @@ func (c *connection) reconnect() {
 }
 
 func (c *connection) tryConnect() (err error) {
-	// FIXME: подумать над конфигом
 	if c.Connection, err = amqp.DialConfig(c.addr, amqp.Config{}); err != nil {
 		return
 	}
@@ -160,9 +168,14 @@ func (c *connection) tryConnect() (err error) {
 		return
 	}
 
-	// TODO: durable exchange
-	if err = c.Channel.DeclareExchange(c.exchange.Name); err != nil {
-		return
+	if c.exchange.Durable {
+		if err = c.Channel.DeclareDurableExchange(c.exchange.Name); err != nil {
+			return
+		}
+	} else {
+		if err = c.Channel.DeclareExchange(c.exchange.Name); err != nil {
+			return
+		}
 	}
 
 	if c.ExchangeChannel, err = newChannel(c.Connection, c.count, c.global); err != nil {

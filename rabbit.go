@@ -158,12 +158,18 @@ func (s *subscriber) resubscribe() {
 			continue
 		}
 
+		/*
+			FIXME: if create durable queue and forgot option for that we never handle error about it
+			Example: Exception (406) Reason: "PRECONDITION_FAILED - inequivalent arg 'durable' for queue 'sub'
+				in vhost '/': received 'false' but current is 'true'"
+		*/
 		ch, sub, err := s.r.conn.Consume(
 			s.opts.Queue,
 			s.routingKey,
 			amqp.Table{}, // FIXME
 			amqp.Table{}, // FIXME
 			s.opts.AutoAck,
+			s.opts.Durable,
 		)
 
 		s.r.mtx.Unlock()

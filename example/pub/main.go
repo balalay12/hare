@@ -11,6 +11,7 @@ func main() {
 	broker := hare.NewRabbit(
 		hare.WithAddr("amqp://guest:guest@127.0.0.1:5672"),
 		hare.WithExchange("publisher"),
+		hare.WithDurableExchange(),
 		hare.WithCount(1),
 	)
 
@@ -19,7 +20,7 @@ func main() {
 	}
 
 	for i := 0; i < 100; i++ {
-		if err := broker.Publish("", []byte("test " + strconv.Itoa(i))); err != nil {
+		if err := broker.Publish("", []byte("test "+strconv.Itoa(i))); err != nil {
 			panic(err)
 		}
 

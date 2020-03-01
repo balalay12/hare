@@ -1,10 +1,12 @@
 package hare
 
 type Options struct {
-	addr     string
-	exchange string
-	count    int
-	global   bool
+	addr   string
+	count  int
+	global bool
+
+	exchange        string
+	exchangeDurable bool
 
 	Subscriber SubscribeOptions
 }
@@ -20,6 +22,12 @@ func WithAddr(addr string) Option {
 func WithExchange(ex string) Option {
 	return func(o *Options) {
 		o.exchange = ex
+	}
+}
+
+func WithDurableExchange() Option {
+	return func(o *Options) {
+		o.exchangeDurable = true
 	}
 }
 
@@ -42,6 +50,7 @@ type PublishOption func(*PublishOptions)
 type SubscribeOptions struct {
 	AutoAck bool
 	Queue   string
+	Durable bool
 }
 
 type SubscribeOption func(*SubscribeOptions)
@@ -59,5 +68,11 @@ func NewSubscribeOptions(opts ...SubscribeOption) SubscribeOptions {
 func WithQueue(name string) SubscribeOption {
 	return func(o *SubscribeOptions) {
 		o.Queue = name
+	}
+}
+
+func WithDurableQueue() SubscribeOption {
+	return func(o *SubscribeOptions) {
+		o.Durable = true
 	}
 }

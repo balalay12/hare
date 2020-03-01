@@ -10,6 +10,7 @@ func main() {
 		hare.WithAddr("amqp://guest:guest@127.0.0.1:5672"),
 		hare.WithExchange("publisher"),
 		hare.WithCount(1),
+		hare.WithGlobal(),
 	)
 
 	if err := broker.Connect(); err != nil {
@@ -18,6 +19,8 @@ func main() {
 
 	done := make(chan struct{})
 
+	subOpts := []hare.SubscribeOption{hare.WithQueue("sub")} //, hare.WithDurableQueue()}
+
 	go func() {
 		fn := func(msg []byte) error {
 			fmt.Println("first", string(msg))
@@ -25,7 +28,7 @@ func main() {
 			return nil
 		}
 
-		_, err := broker.Subscribe("", fn, hare.WithQueue("sub"))
+		_, err := broker.Subscribe("", fn, subOpts...)
 		if err != nil {
 			panic(err)
 		}
@@ -38,7 +41,7 @@ func main() {
 			return nil
 		}
 
-		_, err := broker.Subscribe("", fn, hare.WithQueue("sub"))
+		_, err := broker.Subscribe("", fn, subOpts...)
 		if err != nil {
 			panic(err)
 		}
@@ -46,4 +49,3 @@ func main() {
 
 	<-done
 }
-
