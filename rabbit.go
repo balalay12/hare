@@ -97,6 +97,18 @@ func (r *rabbit) Subscribe(topic string, handler func(msg []byte) error, opts ..
 	return &s, nil
 }
 
+func (s *subscriber) Unsubscribe() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.mayRun = false
+
+	if s.ch != nil {
+		return s.ch.Close()
+	}
+
+	return nil
+}
+
 func (r *rabbit) Connect() error {
 	ex := Exchange{Name: r.opts.exchange} // FIXME: durable?
 
@@ -113,7 +125,7 @@ func (r *rabbit) Disconnect() error {
 	}
 
 	err := r.conn.Close()
-	r.wg.Wait() // FIXME: дождать каких то горутин
+	r.wg.Wait()
 	return err
 }
 
