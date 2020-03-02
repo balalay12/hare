@@ -110,7 +110,7 @@ func (s *subscriber) Unsubscribe() error {
 }
 
 func (r *rabbit) Connect() error {
-	ex := Exchange{Name: r.opts.exchange} // FIXME: durable?
+	ex := Exchange{Name: r.opts.exchange, Durable: r.opts.exchangeDurable}
 
 	if r.conn == nil {
 		r.conn = NewConnection(ex, r.opts.addr, r.opts.count, r.opts.global)
