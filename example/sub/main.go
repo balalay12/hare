@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"hare"
+
+	"github.com/balalay12/hare"
 )
 
 func main() {

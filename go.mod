@@ -1,4 +1,4 @@
-module hare
+module github.com/balalay12/hare
 
 go 1.13
 

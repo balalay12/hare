@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"hare"
 	"strconv"
 	"time"
+
+	"github.com/balalay12/hare"
 )
 
 func main() {
@@ -26,8 +26,4 @@ func main() {
 
 		time.Sleep(500 * time.Millisecond)
 	}
-}
-
-func gg(ch chan bool) {
-	fmt.Println(<-ch)
 }
