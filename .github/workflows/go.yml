@@ -1,0 +1,21 @@
+---
+name: CI
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+jobs:
+  # We already run the current golangci-lint in tests, but here we test
+  # our GitHub action with the latest stable golangci-lint.
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.28
