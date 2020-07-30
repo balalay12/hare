@@ -3,184 +3,66 @@ package hare
 import (
 	"github.com/streadway/amqp"
 	"sync"
-	"time"
 )
 
+type Connection interface {
+	ChannelBroker
+	IsClosed() bool
+}
+
 type connection struct {
-	Connection      *amqp.Connection
-	Channel         *channel
-	ExchangeChannel *channel
+	dsn string
 
-	exchange Exchange
-	addr     string
-	count    int
-	global   bool
+	amqp     *amqp.Connection
+	channels map[string]*channel
 
-	sync.Mutex
-	connected bool // уже есть соединение
-	close     chan struct{}
+	mu     *sync.Mutex
+	chanMu *sync.RWMutex
 
-	waitConn chan struct{}
+	notifyClose chan *amqp.Error
 }
 
-type Exchange struct {
-	Name    string
-	Durable bool
+func (c *connection) IsClosed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.isAmqpClosed()
 }
 
-func NewConnection(ex Exchange, addr string, count int, global bool) *connection {
-	conn := connection{
-		exchange: ex,
-		addr:     addr,
-		count:    count,
-		global:   global,
-		close:    make(chan struct{}),
-		waitConn: make(chan struct{}),
-	}
-	close(conn.waitConn)
-
-	return &conn
+func (c *connection) isAmqpClosed() bool {
+	return c.amqp == nil || c.amqp.IsClosed()
 }
 
-func (c *connection) Connect() (err error) {
-	c.Lock()
-
-	if c.connected {
-		c.Unlock()
-		return
-	}
-
-	select {
-	case <-c.close:
-		c.close = make(chan struct{})
-	default:
-	}
-
-	c.Unlock()
-
-	return c.connect()
-}
-
-func (c *connection) Close() error {
-	c.Lock()
-	defer c.Unlock()
-
-	select {
-	case <-c.close:
+func (c *connection) connect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.isAmqpClosed() {
 		return nil
-	default:
-		close(c.close)
-		c.connected = false
 	}
-
-	return c.Connection.Close()
-}
-
-func (c *connection) Consume(
-	queue, key string,
-	headers, args amqp.Table,
-	autoAck, durableQueue bool,
-) (*channel, <-chan amqp.Delivery, error) {
-	consumerCh, err := newChannel(c.Connection, c.count, c.global)
+	go c.checkState()
+	internal, err := amqp.Dial(c.dsn)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-
-	if durableQueue {
-		if err := consumerCh.DeclareDurableQueue(queue, args); err != nil {
-			return nil, nil, err
-		}
-	} else {
-		if err := consumerCh.DeclareQueue(queue, args); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	deliveries, err := consumerCh.ConsumeQueue(queue, autoAck)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := consumerCh.BindQueue(queue, key, c.exchange.Name, headers); err != nil {
-		return nil, nil, err
-	}
-
-	return consumerCh, deliveries, nil
+	internal.NotifyClose(c.notifyClose)
+	c.amqp = internal
+	return nil
 }
 
-func (c *connection) Publish(exchange, key string, msg amqp.Publishing) error {
-	return c.ExchangeChannel.Publish(exchange, key, msg)
-}
-
-func (c *connection) connect() (err error) {
-	if err = c.tryConnect(); err != nil {
-		return
-	}
-
-	c.Lock()
-	c.connected = true
-	c.Unlock()
-
-	go c.reconnect()
-
-	return
-}
-
-func (c *connection) reconnect() {
-	var connect bool
-
+func (c *connection) checkState() {
 	for {
-		if connect {
-			if err := c.tryConnect(); err != nil {
-				time.Sleep(1 * time.Second) // TODO: вынести в конфиг
-				continue
-			}
-
-			c.Lock()
-			c.connected = true
-			c.Unlock()
-
-			close(c.waitConn)
-		}
-
-		connect = true
-		notifyClose := make(chan *amqp.Error)
-		c.Connection.NotifyClose(notifyClose)
-
 		select {
-		case <-notifyClose:
-			c.Lock()
-			c.connected = false
-			c.waitConn = make(chan struct{})
-			c.Unlock()
-		case <-c.close:
+		case <-c.notifyClose:
+			c.amqp = nil
 			return
 		}
 	}
 }
 
-func (c *connection) tryConnect() (err error) {
-	if c.Connection, err = amqp.DialConfig(c.addr, amqp.Config{}); err != nil {
-		return
-	}
-
-	if c.Channel, err = newChannel(c.Connection, c.count, c.global); err != nil {
-		return
-	}
-
-	if c.exchange.Durable {
-		if err = c.Channel.DeclareDurableExchange(c.exchange.Name); err != nil {
-			return
-		}
-	} else {
-		if err = c.Channel.DeclareExchange(c.exchange.Name); err != nil {
-			return
+func (c *connection) invoke(handler func(*amqp.Connection) error) error {
+	if c.IsClosed() {
+		if err := c.connect(); err != nil {
+			return err
 		}
 	}
-
-	if c.ExchangeChannel, err = newChannel(c.Connection, c.count, c.global); err != nil {
-		return
-	}
-
-	return
+	return handler(c.amqp)
 }

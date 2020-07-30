@@ -1,2 +1,12 @@
-Rabbit wrapper  
-Based on https://github.com/micro/go-plugins
+# HARE - simple RabbitMq wrapper
+
+## User guide
+
+Components:
+- Connection
+- Channel
+- Exchange
+- Queue
+- Producer
+- Consumer
+- Binding
